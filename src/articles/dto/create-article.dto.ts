@@ -1,4 +1,4 @@
-import { ApiProperty, ApiExtraModels } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, ApiExtraModels } from '@nestjs/swagger';
 
 @ApiExtraModels()
 export class CreateArticleDto {
@@ -32,4 +32,12 @@ export class CreateArticleDto {
         description: 'Whether the article is published (true) or in draft mode (false).'
     })
     published?: boolean;
+
+    @ApiProperty({
+        example: ['nestjs', 'typescript', 'backend'],
+        description: 'List of tags associated with the article.',
+        required: false,
+        type: [String]
+    })
+    tags?: string[];
 }

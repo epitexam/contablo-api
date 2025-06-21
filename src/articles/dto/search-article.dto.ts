@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SearchArticleDto {
@@ -34,4 +34,14 @@ export class SearchArticleDto {
     @IsOptional()
     @IsString()
     sort?: string;
+
+    @ApiPropertyOptional({
+        type: [String],
+        description: 'Filter by tags. Returns articles containing at least one of the specified tags.',
+        example: ['nestjs', 'typescript']
+    })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    tags?: string[];
 }

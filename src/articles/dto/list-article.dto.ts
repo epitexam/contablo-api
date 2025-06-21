@@ -20,6 +20,9 @@ export class ArticleListItemDto {
 
     @ApiProperty({ example: 'johndoe' })
     authorUsername: string;
+
+    @ApiProperty({ example: ['nestjs', 'typescript', 'backend'], description: 'List of tags associated with the article.' })
+    tags: string[];
 }
 
 export class ListArticleDto {

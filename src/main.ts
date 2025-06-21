@@ -14,7 +14,15 @@ async function bootstrap() {
     .addTag('Articles', 'Article management')
     .addTag('Posts', 'Post management')
     .addTag('Comments', 'Comment management')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      name: 'Authorization',
+      in: 'header',
+    }, 'jwt-access-token')
     .build();
+
 
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('documentation', app, documentFactory)

@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate, OneToMany } from 'typeorm';
 import * as argon2 from "argon2";
 import { v4 as uuidv4 } from 'uuid';
+import { Article } from '../../articles/entities/article.entity';
 
 @Entity()
 export class User {
@@ -39,6 +40,9 @@ export class User {
 
     @UpdateDateColumn()
     updatedAt: Date;
+
+    @OneToMany(() => Article, article => article.author)
+    articles: Article[];
 
     @BeforeInsert()
     @BeforeUpdate()

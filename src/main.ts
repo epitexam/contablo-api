@@ -13,6 +13,7 @@ async function bootstrap() {
     .addTag('Users', 'User management')
     .addTag('Articles', 'Article management')
     .addTag('Posts', 'Post management')
+    .addTag('Auth', 'Authentication and authorization')
     .addTag('Comments', 'Comment management')
     .addBearerAuth({
       type: 'http',

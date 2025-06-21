@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { SearchUserDto } from './dto/search-user.dto';
-import { UserResponseDto } from './dto/user-response.dto';
+import { ListUserDto } from './dto/list-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -46,7 +46,7 @@ export class UsersService {
     query.skip((page - 1) * pageSize).take(pageSize);
 
     const [users, total] = await query.getManyAndCount();
-    const formattedUsers = users.map(user => new UserResponseDto(user));
+    const formattedUsers = users.map(user => new ListUserDto(user));
 
     return { users: formattedUsers, pagination: { page, pageSize, total } };
   }

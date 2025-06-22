@@ -8,10 +8,10 @@ export class SearchArticleDto {
     @IsString()
     username?: string;
 
-    @ApiPropertyOptional({ description: 'Filter by published status.' })
+    @ApiPropertyOptional({ description: "Filter by article title." })
     @IsOptional()
-    @IsBoolean()
-    published?: boolean;
+    @IsString()
+    title?: string;
 
     @ApiPropertyOptional({ description: 'Filter by article slug.' })
     @IsOptional()

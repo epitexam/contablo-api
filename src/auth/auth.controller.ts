@@ -6,7 +6,7 @@ import { ApiBadRequestResponse, ApiBody, ApiConflictResponse, ApiCreatedResponse
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UserResponseDto } from 'src/users/dto/user-response.dto';
 
-@ApiTags('auth')
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
 
@@ -70,7 +70,7 @@ export class AuthController {
         examples: {
             valid: {
                 summary: 'Valid example',
-                value: { email: 'user@email.com', password: 'password123' }
+                value: { email: 'john.doe@example.com', password: 'password123' }
             }
         }
     })

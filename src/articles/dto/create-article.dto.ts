@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, IsUUID } from 'class-validator';
+import { v4 as uuidv4 } from 'uuid';
 
 export class CreateArticleDto {
     @ApiProperty({
@@ -8,6 +9,15 @@ export class CreateArticleDto {
     })
     @IsString()
     title: string;
+
+    @ApiProperty({
+        example: uuidv4(),
+        description: 'Unique identifier for the article.',
+        required: false,
+    })
+    @IsOptional()
+    @IsUUID()
+    uuid?: string;
 
     @ApiProperty({
         example: 'This is the content of the article.',

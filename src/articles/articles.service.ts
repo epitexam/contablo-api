@@ -41,10 +41,9 @@ export class ArticlesService {
   }
 
   async create(createArticleDto: CreateArticleDto, author: User) {
-
     const slug = createArticleDto.slug || createArticleDto.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
 
-    const existingArticleBySlug = await this.findOneBySlug(slug);
+    const existingArticleBySlug = await this.articlesRepository.findOne({ where: { slug } });
     if (existingArticleBySlug) { throw new ConflictException(`Article with slug "${slug}" already exists`); }
 
     const article = await this.articlesRepository.save(
@@ -105,33 +104,29 @@ export class ArticlesService {
   }
 
   async findOne(id: number) {
-    const article = await this.articlesRepository.findOne({ where: { id } });
-    if (!article) { throw new NotFoundException(); }
+    const article = await this.articlesRepository.findOne({ where: { id }, relations: ['author'] });
     return article ? this.toSingleArticleDto(article) : null;
   }
 
-  async findArticleByUuidAndAuthor(uuid: string, authorUuid: string) {
+  async findArticleByUuidAndAuthor(articleUuid: string, authorUuid: string) {
     const article = await this.articlesRepository.findOne({
       where: {
-        uuid,
-        author: {
-          uuid: authorUuid
-        }
-      }
-    })
+        uuid: articleUuid,
+        author: { uuid: authorUuid }
+      },
+      relations: ['author'],
+    });
     if (!article) { throw new UnauthorizedException(); }
-    return article
+    return this.toSingleArticleDto(article);
   }
 
   async findOneBySlug(slug: string) {
     const article = await this.articlesRepository.findOne({ where: { slug }, relations: ['author'] });
-    if (!article) { throw new NotFoundException(); }
     return article ? this.toSingleArticleDto(article) : null;
   }
 
   async findOneByUuid(uuid: string) {
     const article = await this.articlesRepository.findOne({ where: { uuid }, relations: ['author'] });
-    if (!article) { throw new NotFoundException(); }
     return article ? this.toSingleArticleDto(article) : null;
   }
 
@@ -140,10 +135,9 @@ export class ArticlesService {
     return articles.map(this.toSingleArticleDto);
   }
 
-  async update(uuid: string, updateArticleDto: UpdateArticleDto) {
+  update(uuid: string, updateArticleDto: UpdateArticleDto) {
     return this.articlesRepository.update({ uuid }, { ...updateArticleDto })
   }
-
   remove(uuid: string) {
     return this.articlesRepository.delete({ uuid })
   }

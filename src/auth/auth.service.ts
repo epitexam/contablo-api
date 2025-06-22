@@ -18,6 +18,10 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
+        if (!user.isActive) {
+            throw new UnauthorizedException('User is not active');
+        }
+
         const validPassword = await user.checkPassword(plainPassword);
 
         if (!validPassword) {

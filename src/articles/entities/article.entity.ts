@@ -33,4 +33,7 @@ export class Article {
 
     @UpdateDateColumn()
     updatedAt: Date;
+
+    @Column('text', { array: true, default: [] })
+    tags: string[];
 }

@@ -27,6 +27,7 @@ export class CreateArticleDto {
         example: 'my-first-article',
         description: 'A unique slug for the article, used in URLs.',
     })
+    @IsOptional()
     @IsString()
     slug: string;
 

@@ -59,19 +59,29 @@ export class ArticlesService {
   }
 
   async search(searchDto: SearchArticleDto) {
-    const { username, published, slug, tags, page = 1, limit = 10, sort = '-createdAt' } = searchDto;
+    const {
+      username,
+      title,
+      slug,
+      tags,
+      page = 1,
+      limit = 10,
+      sort = '-createdAt'
+    } = searchDto;
 
     const qb = this.articlesRepository.createQueryBuilder('article')
       .leftJoinAndSelect('article.author', 'author');
 
+    qb.andWhere('article.published = :published', { published: true });
+
     if (username) {
-      qb.andWhere('author.username = :username', { username });
+      qb.andWhere('author.username ILIKE :username', { username: `%${username}%` });
     }
-    if (published !== undefined) {
-      qb.andWhere('article.published = :published', { published });
+    if (title) {
+      qb.andWhere('article.title ILIKE :title', { title: `%${title}%` });
     }
     if (slug) {
-      qb.andWhere('article.slug = :slug', { slug });
+      qb.andWhere('article.slug ILIKE :slug', { slug: `%${slug}%` });
     }
     if (tags && Array.isArray(tags) && tags.length > 0) {
       qb.andWhere('article.tags && :tags', { tags });

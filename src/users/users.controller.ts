@@ -1,21 +1,22 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiConflictResponse, ApiCreatedResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto } from './dto/create-user.dto';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { SearchUserDto } from './dto/search-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { ProfileUserDto } from './dto/profile.user.dto';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiCreatedResponse({ description: 'User successfully created' })
-  @ApiBadRequestResponse({ description: 'Invalid user input' })
-  @ApiConflictResponse({ description: 'Username/Email already in use' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  private async getUserOrThrow(req) {
+    const userInfo = await this.usersService.findOneByUuid(req.user.uuid);
+    if (!userInfo) {
+      throw new UnauthorizedException('User not found or unauthorized');
+    }
+    return userInfo;
   }
 
   @Get()
@@ -34,6 +35,24 @@ export class UsersController {
     return await this.usersService.search(searchDto);
   }
 
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt-access-token')
+  @ApiOperation({ summary: 'Get current user profile', description: 'Returns the profile of the authenticated user, including all articles they have posted.' })
+  @ApiOkResponse({
+    description: 'User profile retrieved successfully',
+    type: ProfileUserDto,
+  })
+  @ApiNotFoundResponse({ description: 'User not found' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized access' })
+  @ApiConflictResponse({ description: 'User profile conflict' })
+  @HttpCode(HttpStatus.OK)
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  async profile(@Request() req) {
+    const userInfo = await this.getUserOrThrow(req);
+    return this.usersService.findProfileByUuid(userInfo.uuid);
+  }
+
   @Get(':uuid')
   @ApiOperation({ summary: 'Get user by UUID' })
   @ApiOkResponse({ description: 'User data retrieved successfully' })
@@ -43,7 +62,9 @@ export class UsersController {
     return this.usersService.findOneByUuid(uuid);
   }
 
-  @Patch(':uuid')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt-access-token')
+  @Patch()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Update user',
@@ -52,14 +73,14 @@ export class UsersController {
   @ApiNoContentResponse({ description: 'User updated successfully' })
   @ApiNotFoundResponse({ description: 'User not found' })
   @ApiBadRequestResponse({ description: 'Invalid user data' })
-  @ApiParam({ name: 'uuid', description: 'UUID of the user to update' })
-  async update(@Param('uuid') uuid: string, @Body() updateUserDto: UpdateUserDto) {
-    const userInfo = await this.usersService.findOneByUuid(uuid);
-    if (!userInfo) throw new NotFoundException('User not found');
-    return this.usersService.update(uuid, updateUserDto);
+  async update(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    const userInfo = await this.getUserOrThrow(req);
+    return this.usersService.update(userInfo.uuid, updateUserDto);
   }
 
-  @Delete(':uuid')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt-access-token')
+  @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete user',
@@ -67,10 +88,8 @@ export class UsersController {
   })
   @ApiNoContentResponse({ description: 'User deleted successfully' })
   @ApiNotFoundResponse({ description: 'User not found' })
-  @ApiParam({ name: 'uuid', description: 'UUID of the user to delete' })
-  async remove(@Param('uuid') uuid: string) {
-    const userInfo = await this.usersService.findOneByUuid(uuid);
-    if (!userInfo) throw new NotFoundException('User not found');
-    return this.usersService.remove(uuid);
+  async remove(@Request() req) {
+    const userInfo = await this.getUserOrThrow(req);
+    return this.usersService.remove(userInfo.uuid);
   }
 }

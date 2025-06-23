@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { SearchUserDto } from './dto/search-user.dto';
 import { ListUserDto } from './dto/list-user.dto';
 
+
 @Injectable()
 export class UsersService {
 
@@ -65,6 +66,56 @@ export class UsersService {
 
   findOneByUuid(uuid: string) {
     return this.usersRepository.findOne({ where: { uuid } })
+  }
+
+  async findProfileByUuid(uuid: string) {
+    const user = await this.usersRepository.createQueryBuilder('user')
+      .leftJoinAndSelect('user.articles', 'article')
+      .select([
+        'user.uuid',
+        'user.username',
+        'user.email',
+        'user.firstName',
+        'user.lastName',
+        'user.bio',
+        'user.avatarUrl',
+        'user.createdAt',
+        'user.updatedAt',
+        'article.uuid',
+        'article.title',
+        'article.slug',
+        'article.published',
+        'article.createdAt',
+        'article.tags'
+      ])
+      .where('user.uuid = :uuid', { uuid })
+      .getOne();
+
+    if (!user) return null;
+
+    const articles = (user.articles || []).map(article => ({
+      uuid: article.uuid,
+      title: article.title,
+      slug: article.slug,
+      published: article.published,
+      createdAt: article.createdAt,
+      authorUsername: user.username,
+      tags: article.tags,
+    }));
+
+    const profile = {
+      uuid: user.uuid,
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      bio: user.bio,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      articles,
+    };
+    return profile;
   }
 
   update(uuid: string, updateUserDto: UpdateUserDto) {

@@ -1,15 +1,23 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto } from './dto/create-user.dto';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { SearchUserDto } from './dto/search-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { ProfileUserDto } from './dto/profile.user.dto';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
+
+  private async getUserOrThrow(req) {
+    const userInfo = await this.usersService.findOneByUuid(req.user.uuid);
+    if (!userInfo) {
+      throw new UnauthorizedException('User not found or unauthorized');
+    }
+    return userInfo;
+  }
 
   @Get()
   @ApiOperation({ summary: 'Search for users' })
@@ -25,6 +33,24 @@ export class UsersController {
     if (searchDto.page < 1 || searchDto.pageSize < 1)
       throw new BadRequestException('Page et taille de page doivent être positives.');
     return await this.usersService.search(searchDto);
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt-access-token')
+  @ApiOperation({ summary: 'Get current user profile', description: 'Returns the profile of the authenticated user, including all articles they have posted.' })
+  @ApiOkResponse({
+    description: 'User profile retrieved successfully',
+    type: ProfileUserDto,
+  })
+  @ApiNotFoundResponse({ description: 'User not found' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized access' })
+  @ApiConflictResponse({ description: 'User profile conflict' })
+  @HttpCode(HttpStatus.OK)
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  async profile(@Request() req) {
+    const userInfo = await this.getUserOrThrow(req);
+    return this.usersService.findProfileByUuid(userInfo.uuid);
   }
 
   @Get(':uuid')
@@ -48,8 +74,7 @@ export class UsersController {
   @ApiNotFoundResponse({ description: 'User not found' })
   @ApiBadRequestResponse({ description: 'Invalid user data' })
   async update(@Request() req, @Body() updateUserDto: UpdateUserDto) {
-    const userInfo = await this.usersService.findOneByUuid(req.user.uuid);
-    if (!userInfo) throw new NotFoundException('User not found');
+    const userInfo = await this.getUserOrThrow(req);
     return this.usersService.update(userInfo.uuid, updateUserDto);
   }
 
@@ -64,8 +89,7 @@ export class UsersController {
   @ApiNoContentResponse({ description: 'User deleted successfully' })
   @ApiNotFoundResponse({ description: 'User not found' })
   async remove(@Request() req) {
-    const userInfo = await this.usersService.findOneByUuid(req.user.uuid);
-    if (!userInfo) throw new NotFoundException('User not found');
+    const userInfo = await this.getUserOrThrow(req);
     return this.usersService.remove(userInfo.uuid);
   }
 }

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, BeforeInsert } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { Post } from 'src/posts/entities/post.entity';
@@ -40,4 +40,9 @@ export class Article {
 
     @Column('text', { array: true, default: [] })
     tags: string[];
+
+    @BeforeInsert()
+    generateUuid() {
+        this.uuid = uuidv4();
+    }
 }

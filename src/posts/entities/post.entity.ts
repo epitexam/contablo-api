@@ -1,6 +1,6 @@
 import { Article } from "src/articles/entities/article.entity";
 import { User } from "src/users/entities/user.entity";
-import { Column, CreateDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { BeforeInsert, Column, CreateDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { v4 as uuidv4 } from 'uuid';
 
 @Entity()
@@ -28,4 +28,9 @@ export class Post {
 
     @CreateDateColumn()
     createdAt: Date;
+
+    @BeforeInsert()
+    generateUuid() {
+        this.uuid = uuidv4();
+    }
 }

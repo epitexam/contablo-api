@@ -56,6 +56,11 @@ export class User {
         }
     }
 
+    @BeforeInsert()
+    generateUuid() {
+        this.uuid = uuidv4();
+    }
+
     async checkPassword(plainPassword: string): Promise<boolean> {
         return await argon2.verify(this.password, plainPassword);
     }

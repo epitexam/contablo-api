@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { ArticlesModule } from './articles/articles.module';
 import { Article } from './articles/entities/article.entity';
 import { PostsModule } from './posts/posts.module';
+import { Post } from './posts/entities/post.entity';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { PostsModule } from './posts/posts.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || 'root',
       database: process.env.DB_NAME || 'test',
-      entities: [User, Article],
+      entities: [User, Article, Post],
       synchronize: true,
     }),
     UsersModule,

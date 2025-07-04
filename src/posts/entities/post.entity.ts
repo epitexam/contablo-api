@@ -1,1 +1,31 @@
-export class Post {}
+import { Article } from "src/articles/entities/article.entity";
+import { User } from "src/users/entities/user.entity";
+import { Column, CreateDateColumn, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { v4 as uuidv4 } from 'uuid';
+
+@Entity()
+export class Post {
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column({ unique: true, default: uuidv4() })
+    uuid: string;
+
+    @Column('text')
+    content: string;
+
+    @ManyToOne(() => User, (user) => user.posts, { eager: true, onDelete: 'CASCADE' })
+    author: User;
+
+    @ManyToOne(() => Article, (article) => article.comments, { nullable: true, onDelete: 'CASCADE' })
+    article: Article;
+
+    @ManyToOne(() => Post, (post) => post.children, { nullable: true, onDelete: 'CASCADE' })
+    parent: Post;
+
+    @OneToMany(() => Post, (post) => post.parent)
+    children: Post[];
+
+    @CreateDateColumn()
+    createdAt: Date;
+}

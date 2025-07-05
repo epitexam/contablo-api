@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, MethodNotAllowedException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,6 +8,8 @@ import { User } from 'src/users/entities/user.entity';
 import { SearchArticleDto } from './dto/search-article.dto';
 import { SingleArticleDto } from './dto/single-article.dto';
 import { ArticleListItemDto, ListArticleDto } from './dto/list-article.dto';
+
+type ActionType = 'delete' | 'update';
 
 @Injectable()
 export class ArticlesService {
@@ -118,11 +120,11 @@ export class ArticlesService {
     return article ? this.toSingleArticleDto(article) : null;
   }
 
-  async findArticleByUuidAndAuthor(articleUuid: string, authorUuid: string) {
+  async findArticleByUuidAndAuthor(articleUuid: string, author: User) {
     const article = await this.articlesRepository.findOne({
       where: {
         uuid: articleUuid,
-        author: { uuid: authorUuid }
+        author,
       },
       relations: ['author'],
     });
@@ -132,23 +134,66 @@ export class ArticlesService {
 
   async findOneBySlug(slug: string) {
     const article = await this.articlesRepository.findOne({ where: { slug }, relations: ['author'] });
-    return article ? this.toSingleArticleDto(article) : null;
+    if (!article) {
+      throw new NotFoundException("Article not found.")
+    }
+    return this.toSingleArticleDto(article)
   }
 
   async findOneByUuid(uuid: string) {
     const article = await this.articlesRepository.findOne({ where: { uuid }, relations: ['author'] });
-    return article ? this.toSingleArticleDto(article) : null;
+    if (!article) {
+      throw new NotFoundException("Article not found.")
+    }
+    return this.toSingleArticleDto(article)
   }
 
-  async findByAuthor(author: User) {
-    const articles = await this.articlesRepository.find({ where: { author: { id: author.id } }, relations: ['author'] });
+  async findByAuthor(author: User, take: number = 10, skip: number = 1) {
+    const articles = await this.articlesRepository.find({ where: { author: { id: author.id } }, take, skip, relations: ['author'] });
     return articles.map(this.toSingleArticleDto);
   }
 
-  update(uuid: string, updateArticleDto: UpdateArticleDto) {
-    return this.articlesRepository.update({ uuid }, { ...updateArticleDto })
+  async performActionByAuthor(uuid: string, author: User, action: ActionType, updateArticleDto?: UpdateArticleDto) {
+    const article = await this.findOneByUuid(uuid);
+
+    if (!article) {
+      throw new NotFoundException('Article not found.');
+    }
+
+    const articleOwnedByAuthor = await this.findArticleByUuidAndAuthor(uuid, author);
+    if (!articleOwnedByAuthor) {
+      throw new MethodNotAllowedException('You are not allowed to perform this action.');
+    }
+
+    switch (action) {
+      case 'delete':
+        return this.remove(uuid);
+      case 'update':
+        if (!updateArticleDto) {
+          throw new BadRequestException('Update data is required.');
+        }
+        return this.update(uuid, updateArticleDto);
+      default:
+        throw new InternalServerErrorException('Invalid action provided.');
+    }
   }
-  remove(uuid: string) {
-    return this.articlesRepository.delete({ uuid })
+
+  async update(uuid: string, updateArticleDto: UpdateArticleDto) {
+    const article = await this.findOneByUuid(uuid);
+    if (!article) {
+      throw new NotFoundException('Article not found.');
+    }
+
+    return this.articlesRepository.update({ uuid }, { ...updateArticleDto });
   }
+
+  async remove(uuid: string) {
+    const article = await this.findOneByUuid(uuid);
+    if (!article) {
+      throw new NotFoundException('Article not found.');
+    }
+
+    return this.articlesRepository.delete({ uuid });
+  }
+
 }

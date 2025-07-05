@@ -1,4 +1,4 @@
-import { Injectable, MethodNotAllowedException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, MethodNotAllowedException, NotFoundException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Post } from './entities/post.entity';
@@ -33,6 +33,10 @@ export class PostsService {
         const parent = await manager.findOne(Post, { where: { uuid: dto.parentUuid } });
         if (!parent) throw new NotFoundException('Parent post not found');
         post.parent = parent;
+      }
+
+      if (!post.parent && !post.article) {
+        throw new BadRequestException("The post must be linked to at least one article or one parent post.")
       }
 
       const savedPost = await manager.save(Post, post);
@@ -81,13 +85,18 @@ export class PostsService {
     );
   }
 
+  async findByAuthor(author: User) {
+    const posts = await this.postsRepository.find({ where: { author: { uuid: author.uuid } } })
+    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
+  }
+
   async findOne(id: number) {
     const posts = await this.postsRepository.find({ where: { id } })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
   async findOneByUuid(uuid: string) {
-    const posts = await this.postsRepository.find({ where: { uuid } })
+    const posts = await this.postsRepository.findOne({ where: { uuid } })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
@@ -101,39 +110,45 @@ export class PostsService {
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
-  async findByAuthor(author: User) {
-    const posts = await this.postsRepository.find({ where: { author: { uuid: author.uuid } } })
+  async findOneByUuidAndAuthor(uuid: string, author: User) {
+    const posts = await this.postsRepository.findOne({ where: { uuid, author: { uuid: author.uuid } } })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
-  async findPostByUuidAndAuthor(uuid: string, author: User) {
-    const posts = await this.postsRepository.find({ where: { uuid, author } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async pdate(uuid: string, updatePostDto: UpdatePostDto) {
+  async update(uuid: string, updatePostDto: UpdatePostDto) {
     const posts = await this.postsRepository.update({ uuid }, { ...updatePostDto })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
   async removePostByAuthor(uuid: string, author: User) {
+
     const post = await this.findOneByUuid(uuid)
 
     if (!post) {
       throw new NotFoundException("Post not found.")
     }
 
-    const ownedByAuthor = await this.findPostByUuidAndAuthor(uuid, author)
+    const ownedPost = this.findOneByUuidAndAuthor(uuid, author)
 
-    if (!ownedByAuthor) {
-      throw new MethodNotAllowedException("You are not allowed to delete this post.")
+    if (!ownedPost) {
+      throw new MethodNotAllowedException("You are not allowed to delete this post")
     }
 
-    await this.remove(uuid)
-    return {}
+    return this.remove(uuid)
   }
 
   async remove(uuid: string) {
+
+    const post = await this.findOneByUuid(uuid)
+
+    if (!post) {
+      throw new NotFoundException("Post not found.")
+    }
+
+    if (post.children) {
+      return this.update(uuid, { content: "deleted" })
+    }
+
     return this.postsRepository.delete({ uuid })
   }
 }

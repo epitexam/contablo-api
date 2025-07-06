@@ -30,10 +30,10 @@ export class SearchPostDto {
     @Min(1)
     limit?: number = 10;
 
-    @ApiPropertyOptional({ description: 'Results offset', default: 0 })
+    @ApiPropertyOptional({ description: 'Results page', default: 0 })
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(0)
-    offset?: number = 0;
+    page?: number = 0;
 }

@@ -20,11 +20,11 @@ export class Post {
     @ManyToOne(() => Article, (article) => article.comments, { nullable: true, onDelete: 'CASCADE' })
     article: Article;
 
-    @ManyToOne(() => Post, (post) => post.children, { nullable: true, onDelete: 'CASCADE' })
+    @ManyToOne(() => Post, (post) => post.replies, { nullable: true, onDelete: 'CASCADE' })
     parent: Post;
 
     @OneToMany(() => Post, (post) => post.parent)
-    children: Post[];
+    replies: Post[];
 
     @CreateDateColumn()
     createdAt: Date;

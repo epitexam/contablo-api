@@ -23,6 +23,10 @@ export class SearchPostDto {
     @IsString()
     authorUsername?: string;
 
+    @ApiPropertyOptional({ description: "Responses of the post", default: false })
+    @IsOptional()
+    response: boolean;
+
     @ApiPropertyOptional({ description: 'Number of results to return', default: 10 })
     @IsOptional()
     @Type(() => Number)

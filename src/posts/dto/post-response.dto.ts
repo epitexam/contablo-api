@@ -11,6 +11,13 @@ export class AuthorDto {
     uuid: string;
 }
 
+export class ArticleDto {
+
+    @ApiProperty({ description: "Article's UUID" })
+    @Expose()
+    uuid: string;
+}
+
 export class PostDto {
     @ApiProperty({ description: 'Post UUID' })
     @Expose()
@@ -29,6 +36,11 @@ export class PostDto {
     @Type(() => AuthorDto)
     author: AuthorDto;
 
+    @ApiProperty({ description: "Article infos", type: ArticleDto })
+    @Expose()
+    @Type(() => ArticleDto)
+    article: ArticleDto;
+
     @ApiProperty({
         description: 'Replies to this post (child posts)',
         type: () => [PostDto],
@@ -36,14 +48,5 @@ export class PostDto {
     })
     @Expose()
     @Type(() => PostDto)
-    children?: PostDto[];
-
-    @ApiProperty({
-        description: 'Parent posts of this post',
-        type: () => [PostDto],
-        required: false,
-    })
-    @Expose()
-    @Type(() => PostDto)
-    parent?: PostDto[];
+    replies?: PostDto[];
 }

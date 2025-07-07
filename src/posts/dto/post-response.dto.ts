@@ -49,4 +49,13 @@ export class PostDto {
     @Expose()
     @Type(() => PostDto)
     replies?: PostDto[];
+
+    @ApiProperty({
+        description: 'Parent to this post (child parent)',
+        type: () => [PostDto],
+        required: false,
+    })
+    @Expose()
+    @Type(() => PostDto)
+    replyTo?: PostDto[];
 }

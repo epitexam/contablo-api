@@ -21,9 +21,9 @@ export class Post {
     article: Article;
 
     @ManyToOne(() => Post, (post) => post.replies, { nullable: true, onDelete: 'CASCADE' })
-    parent: Post;
+    replyTo: Post;
 
-    @OneToMany(() => Post, (post) => post.parent)
+    @OneToMany(() => Post, (post) => post.replyTo)
     replies: Post[];
 
     @CreateDateColumn()

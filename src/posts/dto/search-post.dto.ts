@@ -25,7 +25,7 @@ export class SearchPostDto {
 
     @ApiPropertyOptional({ description: "Responses of the post", default: false })
     @IsOptional()
-    response: boolean;
+    onlyReplies: boolean;
 
     @ApiPropertyOptional({ description: 'Number of results to return', default: 10 })
     @IsOptional()

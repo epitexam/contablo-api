@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, BeforeInsert } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { Post } from 'src/posts/entities/post.entity';
 
 @Entity()
 export class Article {
@@ -28,6 +29,9 @@ export class Article {
     @ManyToOne(() => User, user => user.articles, { eager: true, nullable: false })
     author: User;
 
+    @OneToMany(() => Post, (post) => post.article)
+    comments: Post[];
+
     @CreateDateColumn()
     createdAt: Date;
 
@@ -36,4 +40,9 @@ export class Article {
 
     @Column('text', { array: true, default: [] })
     tags: string[];
+
+    @BeforeInsert()
+    generateUuid() {
+        this.uuid = uuidv4();
+    }
 }

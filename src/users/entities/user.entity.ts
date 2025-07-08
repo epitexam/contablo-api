@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import * as argon2 from "argon2";
 import { v4 as uuidv4 } from 'uuid';
 import { Article } from '../../articles/entities/article.entity';
+import { Post } from 'src/posts/entities/post.entity';
 
 @Entity()
 export class User {
@@ -35,6 +36,9 @@ export class User {
     @Column({ type: 'varchar', length: 255, nullable: true })
     avatarUrl: string;
 
+    @OneToMany(() => Post, (post) => post.author)
+    posts: Post[];
+
     @CreateDateColumn()
     createdAt: Date;
 
@@ -50,6 +54,11 @@ export class User {
         if (this.password) {
             this.password = await argon2.hash(this.password);
         }
+    }
+
+    @BeforeInsert()
+    generateUuid() {
+        this.uuid = uuidv4();
     }
 
     async checkPassword(plainPassword: string): Promise<boolean> {

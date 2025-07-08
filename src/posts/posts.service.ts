@@ -1,9 +1,9 @@
-import { BadGatewayException, BadRequestException, Injectable, MethodNotAllowedException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, MethodNotAllowedException, NotFoundException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
-import { DataSource, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Article } from 'src/articles/entities/article.entity';
 import { plainToInstance } from 'class-transformer';
@@ -14,84 +14,94 @@ import { SearchPostDto } from './dto/search-post.dto';
 export class PostsService {
   constructor(
     @InjectRepository(Post) private postsRepository: Repository<Post>,
-    private readonly dataSource: DataSource,
+    @InjectRepository(Article) private articlesRepository: Repository<Article>
   ) { }
 
-  async create(dto: CreatePostDto, author: User): Promise<PostDto> {
-    return this.dataSource.transaction(async (manager) => {
-      const post = new Post();
-      post.content = dto.content;
-      post.author = author;
+  async create(dto: CreatePostDto, author: User) {
 
-      if (dto.articleUuid) {
-        const article = await manager.findOne(Article, { where: { uuid: dto.articleUuid } });
-        if (!article) throw new NotFoundException('Article not found');
-        post.article = article;
+    const newPost = new Post()
+    newPost.content = dto.content
+    newPost.author = author
+
+    if (dto.articleUuid) {
+      const articleInfo = await this.articlesRepository.findOne({ where: { uuid: dto.articleUuid } })
+      if (!articleInfo) {
+        throw new NotFoundException("Article not found")
       }
+      newPost.article = articleInfo
+    }
 
-      if (dto.parentUuid) {
-        const parent = await manager.findOne(Post, { where: { uuid: dto.parentUuid } });
-        if (!parent) throw new NotFoundException('Parent post not found');
-        post.parent = parent;
+    if (dto.parentUuid) {
+      const parentInfo = await this.postsRepository.findOne({ where: { uuid: dto.parentUuid } })
+      if (!parentInfo) {
+        throw new NotFoundException("Post not found")
       }
+      newPost.replyTo = parentInfo
+    }
 
-      if (!post.parent && !post.article) {
-        throw new BadRequestException("The post must be linked to at least one article or one parent post.")
-      }
+    await this.postsRepository.save(newPost)
 
-      const savedPost = await manager.save(Post, post);
-
-      const postWithRelations = await manager.findOne(Post, {
-        where: { id: savedPost.id },
-        relations: ['author', 'children', 'children.author'],
-      });
-
-      return plainToInstance(PostDto, postWithRelations, { excludeExtraneousValues: true });
-    });
+    return plainToInstance(PostDto, newPost, { excludeExtraneousValues: true });
   }
 
-  async search(dto: SearchPostDto): Promise<PostDto[]> {
+  async search(dto: SearchPostDto) {
+
+    const {
+      postUuid,
+      articleUuid,
+      authorUsername,
+      content,
+      onlyReplies,
+      limit = 10,
+      page = 0,
+    } = dto;
+
+    if (String(onlyReplies) === "true" && !postUuid) {
+      throw new BadRequestException("You must provide 'postUuid' when using 'onlyReplies: true'");
+    }
+
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.article', 'article')
-      .leftJoinAndSelect('post.children', 'children');
+      .leftJoin('post.replies', 'replies')
+      .leftJoinAndSelect('post.replyTo', 'replyTo')
+      .loadRelationCountAndMap('post.replyCount', 'post.replies')
+      .groupBy('post.id')
+      .addGroupBy('author.id')
+      .addGroupBy('article.id')
+      .addGroupBy('replyTo.id');
 
-    if (dto.content) {
-      query.andWhere('post.content ILIKE :content', { content: `%${dto.content}%` });
+    if (content) {
+      query.andWhere('post.content ILIKE :content', { content: `%${content}%` });
     }
 
-    if (dto.postUuid) {
-      query.andWhere('post.uuid = :postUuid', { postUuid: dto.postUuid });
+    if (authorUsername) {
+      query.andWhere('author.username ILIKE :username', { username: `%${authorUsername}%` });
     }
 
-    if (dto.articleUuid) {
-      query.andWhere('article.uuid = :articleUuid', { articleUuid: dto.articleUuid });
+    if (articleUuid) {
+      query.andWhere('article.uuid = :articleUuid', { articleUuid });
     }
 
-    if (dto.authorUsername) {
-      query.andWhere('author.username ILIKE :username', { username: `%${dto.authorUsername}%` });
+    if (postUuid && String(onlyReplies) === "true") {
+      query.andWhere('replyTo.uuid = :postUuid', { postUuid });
+    } else if (postUuid) {
+      query.andWhere('post.uuid = :postUuid', { postUuid });
     }
 
     query
-      .orderBy('post.createdAt', 'DESC')
-      .take(dto.limit ?? 10)
-      .skip(dto.offset ?? 0);
+      .orderBy('post.createdAt', 'ASC')
+      .take(limit)
+      .skip(page * limit);
 
     const posts = await query.getMany();
 
-    return posts.map((post) =>
-      plainToInstance(PostDto, post, { excludeExtraneousValues: true }),
-    );
-  }
-
-  async findByAuthor(author: User) {
-    const posts = await this.postsRepository.find({ where: { author: { uuid: author.uuid } } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
+    return posts.map((post) => plainToInstance(PostDto, post, { excludeExtraneousValues: true }));
   }
 
   async findOne(id: number) {
-    const posts = await this.postsRepository.find({ where: { id } })
+    const posts = await this.postsRepository.findOne({ where: { id } })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
@@ -106,7 +116,7 @@ export class PostsService {
   }
 
   async findByParent(uuid: string) {
-    const posts = await this.postsRepository.find({ where: { parent: { uuid } } })
+    const posts = await this.postsRepository.find({ where: { replyTo: { uuid } } })
     return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
   }
 
@@ -145,7 +155,7 @@ export class PostsService {
       throw new NotFoundException("Post not found.")
     }
 
-    if (post.children) {
+    if (post.replies) {
       return this.update(uuid, { content: "deleted" })
     }
 

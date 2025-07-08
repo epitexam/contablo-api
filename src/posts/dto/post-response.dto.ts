@@ -19,6 +19,7 @@ export class ArticleDto {
 }
 
 export class PostDto {
+
     @ApiProperty({ description: 'Post UUID' })
     @Expose()
     uuid: string;
@@ -49,6 +50,14 @@ export class PostDto {
     @Expose()
     @Type(() => PostDto)
     replies?: PostDto[];
+
+    @ApiProperty({
+        description: 'Total ofReplies to this post',
+        type: Number,
+        required: false,
+    })
+    @Expose()
+    replyCount: number;
 
     @ApiProperty({
         description: 'Parent to this post (child parent)',

@@ -62,7 +62,7 @@ export class PostsController {
   @Get('my-posts')
   async findPostsByAuthor(@CurrentUser() currentUser, @Query('page') page: number, @Query('limit') limit: number) {
     const userInfo = await this.getUserOrThrow(currentUser)
-    return this.postsService.search({ authorUsername: userInfo.username, page: page, limit })
+    return this.postsService.search({ authorUsername: userInfo.username, page, limit, onlyReplies: false });
   }
 
   @UseGuards(JwtAuthGuard)

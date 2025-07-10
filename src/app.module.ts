@@ -10,6 +10,8 @@ import { ArticlesModule } from './articles/articles.module';
 import { Article } from './articles/entities/article.entity';
 import { PostsModule } from './posts/posts.module';
 import { Post } from './posts/entities/post.entity';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -24,12 +26,16 @@ import { Post } from './posts/entities/post.entity';
       entities: [User, Article, Post],
       synchronize: true,
     }),
+    ThrottlerModule.forRoot([{
+      ttl: parseInt(process.env.TTL as string, 10) || 60000,
+      limit: parseInt(process.env.LIMIT as string, 10) || 950,
+    }]),
     UsersModule,
     AuthModule,
     ArticlesModule,
     PostsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule { }

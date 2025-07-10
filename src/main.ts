@@ -14,7 +14,6 @@ async function bootstrap() {
     .addTag('Articles', 'Article management')
     .addTag('Posts', 'Post management')
     .addTag('Auth', 'Authentication and authorization')
-    .addTag('Comments', 'Comment management')
     .addBearerAuth({
       type: 'http',
       scheme: 'bearer',

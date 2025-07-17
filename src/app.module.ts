@@ -13,6 +13,7 @@ import { Post } from './posts/entities/post.entity';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesModule } from './roles/roles.module';
+import { Role } from './roles/entities/role.entity';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { RolesModule } from './roles/roles.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || 'root',
       database: process.env.DB_NAME || 'test',
-      entities: [User, Article, Post],
+      entities: [User, Article, Post, Role],
       synchronize: true,
     }),
     ThrottlerModule.forRoot([{

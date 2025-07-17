@@ -12,7 +12,7 @@ export class AuthService {
     ) { }
 
     async validateUser(email: string, plainPassword: string): Promise<User> {
-        const user = await this.usersService.findOneByEmail(email);
+        const user = await this.usersService.findUserTokenInfo(email);
 
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
@@ -32,7 +32,7 @@ export class AuthService {
     }
 
     async login(user: User) {
-        const payload = { uuid: user.uuid };
+        const payload = { uuid: user.uuid, roles: user.roles.map((role) => role.name) };
         return {
             access_token: this.jwtService.sign(payload),
         };

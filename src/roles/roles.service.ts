@@ -11,12 +11,12 @@ export class RolesService {
   constructor(@InjectRepository(Role) private rolesRepository: Repository<Role>) { }
 
   async create(createRoleDto: CreateRoleDto) {
-    const nameAlreadyUsed = await this.findRoleByName(createRoleDto.name)
+    const nameAlreadyUsed = await this.rolesRepository.find({ where: { name: createRoleDto.name } })
 
     if (nameAlreadyUsed) {
       throw new ConflictException("Name already used.")
     }
-
+    
     return this.rolesRepository.create({ ...createRoleDto })
   }
 

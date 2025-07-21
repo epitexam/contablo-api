@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate, OneToMany, JoinTable, ManyToMany } from 'typeorm';
 import * as argon2 from "argon2";
 import { v4 as uuidv4 } from 'uuid';
 import { Article } from '../../articles/entities/article.entity';
 import { Post } from 'src/posts/entities/post.entity';
+import { Role } from 'src/roles/entities/role.entity';
 
 @Entity()
 export class User {
@@ -47,6 +48,10 @@ export class User {
 
     @OneToMany(() => Article, article => article.author)
     articles: Article[];
+
+    @ManyToMany(() => Role)
+    @JoinTable()
+    roles: Role[];
 
     @BeforeInsert()
     @BeforeUpdate()

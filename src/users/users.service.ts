@@ -60,6 +60,10 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { email } })
   }
 
+  findUserTokenInfo(email: string) {
+    return this.usersRepository.findOne({ where: { email }, relations: ['roles'] })
+  }
+
   findOneByUsername(username: string) {
     return this.usersRepository.findOne({ where: { username } })
   }

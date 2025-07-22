@@ -1,199 +1,164 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, MethodNotAllowedException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { CreateArticleDto } from './dto/create-article.dto';
-import { UpdateArticleDto } from './dto/update-article.dto';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Article } from './entities/article.entity';
 import { Repository } from 'typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { CreateArticleDto } from './dto/create-article.dto';
 import { SearchArticleDto } from './dto/search-article.dto';
-import { SingleArticleDto } from './dto/single-article.dto';
-import { ArticleListItemDto, ListArticleDto } from './dto/list-article.dto';
-
-type ActionType = 'delete' | 'update';
+import { UsersService } from 'src/users/users.service';
+import { ArticleListItemDto } from './dto/list-article.dto';
+import { UpdateArticleDto } from './dto/update-article.dto';
 
 @Injectable()
 export class ArticlesService {
-  constructor(@InjectRepository(Article) private articlesRepository: Repository<Article>) { }
+  constructor(
+    @InjectRepository(Article) private articlesRepository: Repository<Article>,
+    private userService: UsersService
+  ) { }
 
-  private toSingleArticleDto(article: Article): SingleArticleDto {
-    return {
-      uuid: article.uuid,
-      title: article.title,
-      description: article.description,
-      content: article.content,
-      slug: article.slug,
-      published: article.published,
-      createdAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      tags: article.tags,
-      authorUsername: article.author?.username,
-    };
+  async create(createArticleDto: CreateArticleDto, authorUuid: string) {
+
+    const slugAlreadyUsed = await this.findOneByslug(createArticleDto.slug)
+    const userInfo = await this.userService.findOneByUuid(authorUuid)
+
+    if (slugAlreadyUsed) {
+      throw new ConflictException("Slug already used.")
+    }
+
+    const newArticle = this.articlesRepository.create({ ...createArticleDto, author: userInfo })
+
+    return this.articlesRepository.save(newArticle)
   }
 
-  private toArticleListItemDto(article: Article): ArticleListItemDto {
-    return {
+  async search(searchDto: SearchArticleDto) {
+    const query = this.articlesRepository
+      .createQueryBuilder('article')
+      .leftJoinAndSelect('article.author', 'author');
+
+    if (searchDto.title) {
+      query.andWhere(`
+      to_tsvector('english', article.title || ' ' || coalesce(article.description, '') || ' ' || coalesce(article.content, ''))
+      @@ plainto_tsquery('english', :title)
+    `, { title: searchDto.title });
+    }
+
+    if (searchDto.slug) {
+      query.andWhere(`article.slug ILIKE :slug`, { slug: `%${searchDto.slug}%` });
+    }
+
+    if (searchDto.username) {
+      query.andWhere(`author.username ILIKE :username`, { username: `%${searchDto.username}%` });
+    }
+
+    if (searchDto.tags?.length) {
+      query.andWhere(`article.tags && ARRAY[:...tags]::text[]`, { tags: searchDto.tags });
+    }
+
+    query.orderBy('article.createdAt', 'DESC');
+
+    const page = searchDto.page ?? 1;
+    const limit = searchDto.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    query.skip(skip).take(limit);
+
+    const [articles, total] = await query.getManyAndCount();
+
+    const items: ArticleListItemDto[] = articles.map((article) => ({
       uuid: article.uuid,
       title: article.title,
       slug: article.slug,
       published: article.published,
       createdAt: article.createdAt.toISOString(),
       authorUsername: article.author.username,
-      tags: article.tags || [],
+      tags: article.tags,
+    }));
+
+    return { items, total, page, take: limit };
+  }
+
+  async findOneByslug(slug: string) {
+    return this.articlesRepository.findOne({ where: { slug } })
+  }
+
+  async findArticleByAuthor(uuid: string, page: number, limit: number) {
+
+    const [articles, count] = await this.articlesRepository.findAndCount({
+      where: { author: { uuid } },
+      skip: ((Number(page) || 1) - 1) * (Number(limit) || 10),
+      take: Number(limit) || 10,
+    });
+
+    const items: ArticleListItemDto[] = articles.map((article) => ({
+      uuid: article.uuid,
+      title: article.title,
+      slug: article.slug,
+      published: article.published,
+      createdAt: article.createdAt.toISOString(),
+      authorUsername: article.author.username,
+      tags: article.tags,
+    }));
+
+    return {
+      items,
+      count,
+      page: ((Number(page) || 1) - 1) * (Number(limit) || 10),
+      take: Number(limit) || 10,
     };
   }
 
-  async create(createArticleDto: CreateArticleDto, author: User) {
-    const slug = createArticleDto.slug || createArticleDto.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+  async findOneByuuid(uuid: string) {
+    const article = await this.articlesRepository.findOne({ where: { uuid } })
 
-    const existingArticleBySlug = await this.articlesRepository.findOne({ where: { slug } });
-    if (existingArticleBySlug) { throw new ConflictException(`Article with slug "${slug}" already exists`); }
+    if (!article) {
+      throw new NotFoundException("Article not found.")
+    }
 
-    const article = await this.articlesRepository.save(
-      this.articlesRepository.create({
-        ...createArticleDto,
-        author,
-        slug,
-        published: createArticleDto.published || false,
-        tags: createArticleDto.tags || [],
-      }),
-    );
-    return this.toSingleArticleDto(article);
+    return article
   }
 
-  async search(searchDto: SearchArticleDto) {
-    const {
-      username,
-      title,
-      slug,
-      tags,
-      page = 1,
-      limit = 10,
-      sort = '-createdAt'
-    } = searchDto;
 
-    const qb = this.articlesRepository.createQueryBuilder('article')
-      .leftJoinAndSelect('article.author', 'author');
+  async updateArticle(articleUuid: string, userUuid: string, userRoles: string[], updateArticleDto: UpdateArticleDto,) {
+    const article = await this.articlesRepository.findOne({ where: { uuid: articleUuid }, relations: ['author'] });
 
-    qb.andWhere('article.published = :published', { published: true });
-
-    if (username) {
-      qb.andWhere('author.username ILIKE :username', { username: `%${username}%` });
-    }
-    if (title) {
-      qb.andWhere('article.title ILIKE :title', { title: `%${title}%` });
-    }
-    if (slug) {
-      qb.andWhere('article.slug ILIKE :slug', { slug: `%${slug}%` });
-    }
-    if (tags && Array.isArray(tags) && tags.length > 0) {
-      qb.andWhere('article.tags && :tags', { tags });
+    if (!article) {
+      throw new NotFoundException(`Article not found.`);
     }
 
-    const allowedSortFields = ['createdAt', 'title', 'slug', 'published'];
-    if (sort) {
-      const order: 'ASC' | 'DESC' = sort.startsWith('-') ? 'DESC' : 'ASC';
-      const field = sort.replace('-', '');
-      if (allowedSortFields.includes(field)) {
-        qb.orderBy(`article.${field}`, order);
-      } else {
-        qb.orderBy('article.createdAt', 'DESC');
+    const isAdmin = userRoles.includes('admin');
+    const isAuthor = article.author.uuid === userUuid;
+
+    if (!isAdmin && !isAuthor) {
+      throw new ForbiddenException('You are not allowed to edit this article.');
+    }
+
+    if (updateArticleDto.slug) {
+      const slugAlreadyUsed = await this.findOneByslug(updateArticleDto.slug)
+
+      if (slugAlreadyUsed) {
+        throw new ConflictException("Slug already used.")
       }
-    } else {
-      qb.orderBy('article.createdAt', 'DESC');
     }
 
-    qb.skip((page - 1) * limit).take(limit);
+    Object.assign(article, updateArticleDto);
 
-    const [articles, total] = await qb.getManyAndCount();
-    const items = articles.map(this.toArticleListItemDto);
-    return { articles: items, total };
+    return await this.articlesRepository.save(article);
   }
 
-  async findAll() {
-    const articles = await this.articlesRepository.find({ relations: ['author'] });
-    const items = articles.map(this.toArticleListItemDto);
-    return { articles: items, total: items.length };
-  }
-
-  async findOne(id: number) {
-    const article = await this.articlesRepository.findOne({ where: { id }, relations: ['author'] });
-    return article ? this.toSingleArticleDto(article) : null;
-  }
-
-  async findArticleByUuidAndAuthor(articleUuid: string, author: User) {
-    const article = await this.articlesRepository.findOne({
-      where: {
-        uuid: articleUuid,
-        author,
-      },
-      relations: ['author'],
-    });
-    if (!article) { throw new UnauthorizedException(); }
-    return this.toSingleArticleDto(article);
-  }
-
-  async findOneBySlug(slug: string) {
-    const article = await this.articlesRepository.findOne({ where: { slug }, relations: ['author'] });
-    if (!article) {
-      throw new NotFoundException("Article not found.")
-    }
-    return this.toSingleArticleDto(article)
-  }
-
-  async findOneByUuid(uuid: string) {
-    const article = await this.articlesRepository.findOne({ where: { uuid }, relations: ['author'] });
-    if (!article) {
-      throw new NotFoundException("Article not found.")
-    }
-    return this.toSingleArticleDto(article)
-  }
-
-  async findByAuthor(author: User, take: number = 10, skip: number = 1) {
-    const articles = await this.articlesRepository.find({ where: { author: { id: author.id } }, take, skip, relations: ['author'] });
-    return articles.map(this.toSingleArticleDto);
-  }
-
-  async performActionByAuthor(uuid: string, author: User, action: ActionType, updateArticleDto?: UpdateArticleDto) {
-    const article = await this.findOneByUuid(uuid);
+  async deleteArticle(articleUuid: string, userUuid: string, roles: string[],) {
+    const article = await this.articlesRepository.findOne({ where: { uuid: articleUuid }, relations: ['author'] });
 
     if (!article) {
-      throw new NotFoundException('Article not found.');
+      throw new NotFoundException(`Article with UUID ${articleUuid} not found`);
     }
 
-    const articleOwnedByAuthor = await this.findArticleByUuidAndAuthor(uuid, author);
-    if (!articleOwnedByAuthor) {
-      throw new MethodNotAllowedException('You are not allowed to perform this action.');
+    const isAdmin = roles.includes('admin');
+    const isAuthor = article.author.uuid === userUuid;
+
+    if (!isAdmin && !isAuthor) {
+      throw new ForbiddenException('You are not allowed to delete this article');
     }
 
-    switch (action) {
-      case 'delete':
-        return this.remove(uuid);
-      case 'update':
-        if (!updateArticleDto) {
-          throw new BadRequestException('Update data is required.');
-        }
-        return this.update(uuid, updateArticleDto);
-      default:
-        throw new InternalServerErrorException('Invalid action provided.');
-    }
-  }
-
-  async update(uuid: string, updateArticleDto: UpdateArticleDto) {
-    const article = await this.findOneByUuid(uuid);
-    if (!article) {
-      throw new NotFoundException('Article not found.');
-    }
-
-    return this.articlesRepository.update({ uuid }, { ...updateArticleDto });
-  }
-
-  async remove(uuid: string) {
-    const article = await this.findOneByUuid(uuid);
-    if (!article) {
-      throw new NotFoundException('Article not found.');
-    }
-
-    return this.articlesRepository.delete({ uuid });
+    await this.articlesRepository.remove(article);
   }
 
 }

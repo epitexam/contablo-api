@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -68,8 +68,14 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { username } })
   }
 
-  findOneByUuid(uuid: string) {
-    return this.usersRepository.findOne({ where: { uuid } })
+  async findOneByUuid(uuid: string) {
+    const user = await this.usersRepository.findOne({ where: { uuid } })
+
+    if (!user) {
+      throw new NotFoundException("User not foud")
+    }
+
+    return user
   }
 
   async findProfileByUuid(uuid: string) {

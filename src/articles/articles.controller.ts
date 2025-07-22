@@ -1,44 +1,32 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Request, UnauthorizedException, HttpCode, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, UseGuards, HttpCode, HttpStatus, Delete } from '@nestjs/common';
 import { ArticlesService } from './articles.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { SearchArticleDto } from './dto/search-article.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiBadRequestResponse, ApiNoContentResponse, ApiQuery } from '@nestjs/swagger';
-import { UsersService } from 'src/users/users.service';
-import { SingleArticleDto } from './dto/single-article.dto';
-import { audit, take } from 'rxjs';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { CurrentUser } from 'src/users/users.decoraters';
 
 @ApiTags('Articles')
 @Controller('articles')
 export class ArticlesController {
   constructor(
     private readonly articlesService: ArticlesService,
-    private readonly usersService: UsersService
   ) { }
-
-  private async getUserOrThrow(req) {
-    const userInfo = await this.usersService.findOneByUuid(req.user.uuid);
-    if (!userInfo) {
-      throw new UnauthorizedException('User not found or unauthorized');
-    }
-    return userInfo;
-  }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('jwt-access-token')
   @HttpCode(HttpStatus.CREATED)
   @Post()
   @ApiOperation({ summary: 'Create a new article' })
-  async create(@Body() createArticleDto: CreateArticleDto, @Request() req) {
-    const userInfo = await this.getUserOrThrow(req);
-    return this.articlesService.create(createArticleDto, userInfo);
+  async create(@Body() createArticleDto: CreateArticleDto, @CurrentUser() currentUser) {
+    return this.articlesService.create(createArticleDto, currentUser.uuid)
   }
 
   @Get()
   @ApiOperation({ summary: 'Search and list articles' })
   searchArticles(@Query() searchDto: SearchArticleDto) {
-    return this.articlesService.search(searchDto);
+    return this.articlesService.search(searchDto)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -49,6 +37,7 @@ export class ArticlesController {
     required: false,
     description: 'Page of results to display',
     example: 1,
+    default:1,
     type: Number,
   })
   @ApiQuery({
@@ -56,22 +45,18 @@ export class ArticlesController {
     required: false,
     description: 'Number of items per page',
     example: 10,
+    default:10,
     type: Number,
   })
-  async myArticles(@Request() req, @Query('page') page: number, @Query('limit') limit: number) {
-    const userInfo = await this.getUserOrThrow(req);
-    return this.articlesService.findByAuthor(userInfo, limit, page);
+  async myArticles(@CurrentUser() currentUser, @Query('page') page: number, @Query('limit') limit: number) {
+    return this.articlesService.findArticleByAuthor(currentUser.uuid, +page, +limit)
   }
 
   @Get(':uuid')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get a single article by UUID' })
   async findOne(@Param('uuid') uuid: string) {
-    const article = await this.articlesService.findOneByUuid(uuid);
-    if (!article) {
-      throw new NotFoundException(`Article with UUID ${uuid} not found`);
-    }
-    return article;
+    return this.articlesService.findOneByuuid(uuid)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -79,9 +64,8 @@ export class ArticlesController {
   @Patch(':uuid')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Update an article by UUID' })
-  async update(@Param('uuid') uuid: string, @Body() updateArticleDto: UpdateArticleDto, @Request() req) {
-    const user = await this.getUserOrThrow(req);
-    return this.articlesService.performActionByAuthor(uuid, user, 'update', updateArticleDto)
+  async update(@Param('uuid') uuid: string, @Body() updateArticleDto: UpdateArticleDto, @CurrentUser() currentUser) {
+    return this.articlesService.updateArticle(uuid, currentUser.uuid, currentUser.roles, updateArticleDto)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -89,8 +73,7 @@ export class ArticlesController {
   @Delete(':uuid')
   @ApiOperation({ summary: 'Delete an article by UUID' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('uuid') uuid: string, @Request() req) {
-    const user = await this.getUserOrThrow(req);
-    return this.articlesService.performActionByAuthor(uuid, user, "delete")
+  async remove(@Param('uuid') uuid: string, @CurrentUser() currentUser) {
+    return this.articlesService.deleteArticle(uuid, currentUser.uuid, currentUser.roles)
   }
 }

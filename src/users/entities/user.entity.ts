@@ -25,6 +25,9 @@ export class User {
     @Column({ default: true })
     isActive: boolean;
 
+    @Column({ default: false })
+    private: boolean;
+
     @Column({ type: 'varchar', length: 255, nullable: true })
     firstName: string;
 

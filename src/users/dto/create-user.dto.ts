@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
@@ -69,5 +69,6 @@ export class CreateUserDto {
         example: false,
         required: true,
     })
-    private?: boolean;
+    @IsBoolean()
+    private: boolean;
 }

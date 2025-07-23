@@ -3,6 +3,7 @@ import { CreateUserDto } from './create-user.dto';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
+
     @ApiProperty({
         description: 'Unique username',
         example: 'john_doe_updated',
@@ -44,6 +45,13 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
         required: false,
     })
     bio?: string;
+
+    @ApiProperty({
+        description: 'Make user private',
+        example: false,
+        required: true,
+    })
+    private?: boolean;
 
     @ApiProperty({
         description: 'URL of the user avatar',

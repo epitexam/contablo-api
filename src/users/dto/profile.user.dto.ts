@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ArticleListItemDto } from '../../articles/dto/list-article.dto';
+import { User } from '../entities/user.entity';
 
 export class ProfileUserDto {
+    
     @ApiProperty({ description: "User unique identifier (UUID)" })
     uuid: string;
 
@@ -29,10 +31,27 @@ export class ProfileUserDto {
     @ApiProperty({ description: "Date of last user update" })
     updatedAt: Date;
 
+    @ApiProperty({ description: 'State of user profile', required: true })
+    private: boolean;
+
     @ApiProperty({
         type: () => [ArticleListItemDto],
         required: false,
         description: "List of articles posted by the user"
     })
     articles?: ArticleListItemDto[];
+
+    constructor(user: User, articles?: ArticleListItemDto[]) {
+        this.uuid = user.uuid;
+        this.username = user.username;
+        this.email = user.email;
+        this.firstName = user.firstName;
+        this.lastName = user.lastName;
+        this.bio = user.bio;
+        this.avatarUrl = user.avatarUrl;
+        this.createdAt = user.createdAt;
+        this.updatedAt = user.updatedAt;
+        this.articles = articles;
+        this.private = user.private
+    }
 }

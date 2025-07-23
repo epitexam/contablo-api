@@ -1,37 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ArticleListItemDto } from '../../articles/dto/list-article.dto';
+import { ProfilePublicDto } from './profile.public.user.dto';
 import { User } from '../entities/user.entity';
 
-export class ProfileUserDto {
-    
-    @ApiProperty({ description: "User unique identifier (UUID)" })
-    uuid: string;
-
-    @ApiProperty({ description: "User's username" })
-    username: string;
-
-    @ApiProperty({ description: "User's email address" })
-    email: string;
-
+export class ProfilePrivateDto extends ProfilePublicDto {
     @ApiProperty({ required: false, description: "User's first name" })
     firstName?: string;
 
     @ApiProperty({ required: false, description: "User's last name" })
     lastName?: string;
 
-    @ApiProperty({ required: false, description: "User biography" })
-    bio?: string;
-
-    @ApiProperty({ required: false, description: "URL of the user's avatar" })
-    avatarUrl?: string;
-
-    @ApiProperty({ description: "Date of user creation" })
-    createdAt: Date;
+    @ApiProperty({ required: false, description: "User email" })
+    email?: string;
 
     @ApiProperty({ description: "Date of last user update" })
     updatedAt: Date;
 
-    @ApiProperty({ description: 'State of user profile', required: true })
+    @ApiProperty({ description: 'State of user profile' })
     private: boolean;
 
     @ApiProperty({
@@ -42,16 +27,13 @@ export class ProfileUserDto {
     articles?: ArticleListItemDto[];
 
     constructor(user: User, articles?: ArticleListItemDto[]) {
-        this.uuid = user.uuid;
-        this.username = user.username;
-        this.email = user.email;
+        super(user);
         this.firstName = user.firstName;
         this.lastName = user.lastName;
         this.bio = user.bio;
-        this.avatarUrl = user.avatarUrl;
-        this.createdAt = user.createdAt;
+        this.email = user.email;
         this.updatedAt = user.updatedAt;
+        this.private = user.private;
         this.articles = articles;
-        this.private = user.private
     }
 }

@@ -1,8 +1,10 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateUserDto } from './create-user.dto';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsBoolean } from 'class-validator';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
+
     @ApiProperty({
         description: 'Unique username',
         example: 'john_doe_updated',
@@ -44,6 +46,14 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
         required: false,
     })
     bio?: string;
+
+    @ApiProperty({
+        description: 'Make user private',
+        example: false,
+        required: true,
+    })
+    @IsBoolean()
+    private?: boolean;
 
     @ApiProperty({
         description: 'URL of the user avatar',

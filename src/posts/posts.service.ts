@@ -1,27 +1,28 @@
-import { BadRequestException, Injectable, MethodNotAllowedException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { Post } from './entities/post.entity';
-import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Article } from 'src/articles/entities/article.entity';
 import { plainToInstance } from 'class-transformer';
 import { PostDto } from './dto/post-response.dto';
 import { SearchPostDto } from './dto/search-post.dto';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post) private postsRepository: Repository<Post>,
-    @InjectRepository(Article) private articlesRepository: Repository<Article>
+    @InjectRepository(Article) private articlesRepository: Repository<Article>,
+    private usersService: UsersService
   ) { }
 
-  async create(dto: CreatePostDto, author: User) {
+  async create(dto: CreatePostDto, authorUuid: string) {
 
+    const authorInfo = await this.usersService.findOneByUuid(authorUuid)
     const newPost = new Post()
     newPost.content = dto.content
-    newPost.author = author
+    newPost.author = authorInfo
 
     if (dto.articleUuid) {
       const articleInfo = await this.articlesRepository.findOne({ where: { uuid: dto.articleUuid } })
@@ -45,21 +46,6 @@ export class PostsService {
   }
 
   async search(dto: SearchPostDto) {
-
-    const {
-      postUuid,
-      articleUuid,
-      authorUsername,
-      content,
-      onlyReplies,
-      limit = 10,
-      page = 0,
-    } = dto;
-
-    if (String(onlyReplies) === "true" && !postUuid) {
-      throw new BadRequestException("You must provide 'postUuid' when using 'onlyReplies: true'");
-    }
-
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
@@ -72,93 +58,91 @@ export class PostsService {
       .addGroupBy('article.id')
       .addGroupBy('replyTo.id');
 
-    if (content) {
-      query.andWhere('post.content ILIKE :content', { content: `%${content}%` });
+    const page = dto.page ?? 0;
+    const limit = dto.limit ?? 10;
+
+    if (dto.onlyReplies === true && !dto.postUuid) {
+      throw new BadRequestException("You must provide 'postUuid' when using 'onlyReplies: true'");
     }
 
-    if (authorUsername) {
-      query.andWhere('author.username ILIKE :username', { username: `%${authorUsername}%` });
+    if (dto.content) {
+      query.andWhere(
+        `to_tsvector('simple', post.content) @@ plainto_tsquery('simple', :query)`,
+        { query: dto.content },
+      );
     }
 
-    if (articleUuid) {
-      query.andWhere('article.uuid = :articleUuid', { articleUuid });
+    if (dto.authorUsername) {
+      query.andWhere('author.username ILIKE :username', { username: `%${dto.authorUsername}%` });
     }
 
-    if (postUuid && String(onlyReplies) === "true") {
-      query.andWhere('replyTo.uuid = :postUuid', { postUuid });
-    } else if (postUuid) {
-      query.andWhere('post.uuid = :postUuid', { postUuid });
+    if (dto.authorUuid) {
+      query.andWhere('author.uuid ILIKE :uuid', { uuid: `%${dto.authorUuid}%` });
+    }
+
+    if (dto.articleUuid) {
+      query.andWhere('article.uuid = :articleUuid', { articleUuid: dto.articleUuid });
+    }
+
+    if (dto.postUuid && dto.onlyReplies === true) {
+      query.andWhere('replyTo.uuid = :replyToUuid', { replyToUuid: dto.postUuid });
+    } else if (dto.postUuid) {
+      query.andWhere('post.uuid = :postUuid', { postUuid: dto.postUuid });
     }
 
     query
       .orderBy('post.createdAt', 'ASC')
-      .take(limit)
-      .skip(page * limit);
+      .skip(page * limit)
+      .take(limit);
 
-    const posts = await query.getMany();
+    const posts = await query.getManyAndCount();
 
-    return posts.map((post) => plainToInstance(PostDto, post, { excludeExtraneousValues: true }));
+    return posts.map(post =>
+      plainToInstance(PostDto, post, {
+        excludeExtraneousValues: true,
+      }),
+    );
   }
 
-  async findOne(id: number) {
-    const posts = await this.postsRepository.findOne({ where: { id } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
+    async update(postUuid: string, userUuid: string, userRoles: string[]) {
+    const postInfo = await this.postsRepository.findOne({
+      where: {
+        uuid: postUuid
+      }
+    })
 
-  async findOneByUuid(uuid: string) {
-    const posts = await this.postsRepository.findOne({ where: { uuid } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async findByArticles(uuid: string) {
-    const posts = await this.postsRepository.find({ where: { article: { uuid } } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async findByParent(uuid: string) {
-    const posts = await this.postsRepository.find({ where: { replyTo: { uuid } } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async findOneByUuidAndAuthor(uuid: string, author: User) {
-    const posts = await this.postsRepository.findOne({ where: { uuid, author: { uuid: author.uuid } } })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async update(uuid: string, updatePostDto: UpdatePostDto) {
-    const posts = await this.postsRepository.update({ uuid }, { ...updatePostDto })
-    return plainToInstance(PostDto, posts, { excludeExtraneousValues: true });
-  }
-
-  async removePostByAuthor(uuid: string, author: User) {
-
-    const post = await this.findOneByUuid(uuid)
-
-    if (!post) {
-      throw new NotFoundException("Post not found.")
+    if (!postInfo) {
+      throw new NotFoundException(`Post with UUID ${postInfo} not found`);
     }
 
-    const ownedPost = this.findOneByUuidAndAuthor(uuid, author)
+    const isAdmin = userRoles.includes('admin');
+    const isAuthor = postInfo.author.uuid === userUuid;
 
-    if (!ownedPost) {
-      throw new MethodNotAllowedException("You are not allowed to delete this post")
+    if (!isAdmin && !isAuthor) {
+      throw new ForbiddenException('You are not allowed to delete this article');
     }
 
-    return this.remove(uuid)
+    await this.postsRepository.remove(postInfo)
   }
 
-  async remove(uuid: string) {
+  async remove(postUuid: string, userUuid: string, userRoles: string[]) {
+    const postInfo = await this.postsRepository.findOne({
+      where: {
+        uuid: postUuid
+      }
+    })
 
-    const post = await this.findOneByUuid(uuid)
-
-    if (!post) {
-      throw new NotFoundException("Post not found.")
+    if (!postInfo) {
+      throw new NotFoundException(`Post with UUID ${postInfo} not found`);
     }
 
-    if (post.replies) {
-      return this.update(uuid, { content: "deleted" })
+    const isAdmin = userRoles.includes('admin');
+    const isAuthor = postInfo.author.uuid === userUuid;
+
+    if (!isAdmin && !isAuthor) {
+      throw new ForbiddenException('You are not allowed to delete this article');
     }
 
-    return this.postsRepository.delete({ uuid })
+    await this.postsRepository.remove(postInfo)
   }
 }

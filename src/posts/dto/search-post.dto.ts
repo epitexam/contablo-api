@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, IsInt, Min } from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsInt, Min, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SearchPostDto {
@@ -23,8 +23,15 @@ export class SearchPostDto {
     @IsString()
     authorUsername?: string;
 
+    @ApiPropertyOptional({ description: "Author's uuid" })
+    @IsOptional()
+    @IsString()
+    authorUuid?: string;
+
     @ApiPropertyOptional({ description: "Responses of the post", default: false })
     @IsOptional()
+    @Type(() => Boolean)
+    @IsBoolean()
     onlyReplies: boolean;
 
     @ApiPropertyOptional({ description: 'Number of results to return', default: 10 })

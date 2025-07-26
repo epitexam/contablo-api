@@ -1,27 +1,18 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, UnauthorizedException, HttpStatus, HttpCode, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, HttpStatus, HttpCode, Query, Patch } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { UsersService } from 'src/users/users.service';
-import { User } from 'src/users/entities/user.entity';
 import { CurrentUser } from 'src/users/users.decoraters';
 import { SearchPostDto } from './dto/search-post.dto';
+import { RolesGuard } from 'src/roles/roles.guard';
+import { Roles } from 'src/roles/roles.decorator';
 
 @Controller('posts')
 export class PostsController {
   constructor(
     private readonly postsService: PostsService,
-    private readonly usersService: UsersService,
   ) { }
-
-  private async getUserOrThrow(user): Promise<User> {
-    const userInfo = await this.usersService.findOneByUuid(user.uuid);
-    if (!userInfo) {
-      throw new UnauthorizedException('User not found or unauthorized');
-    }
-    return userInfo;
-  }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('jwt-access-token')
@@ -29,8 +20,7 @@ export class PostsController {
   @Post()
   @ApiOperation({ summary: 'Create a new post' })
   async create(@Body() createPostDto: CreatePostDto, @CurrentUser() currentUser) {
-    const userInfo = await this.getUserOrThrow(currentUser)
-    return this.postsService.create(createPostDto, userInfo)
+    return this.postsService.create(createPostDto, currentUser.uuid)
   }
 
   @Get()
@@ -61,8 +51,17 @@ export class PostsController {
   @HttpCode(HttpStatus.OK)
   @Get('my-posts')
   async findPostsByAuthor(@CurrentUser() currentUser, @Query('page') page: number, @Query('limit') limit: number) {
-    const userInfo = await this.getUserOrThrow(currentUser)
-    return this.postsService.search({ authorUsername: userInfo.username, page, limit, onlyReplies: false });
+    return this.postsService.search({ authorUuid: currentUser.uuid, onlyReplies: false, page, limit })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('jwt-access-token')
+  @ApiOperation({ summary: 'Update a post by its UUID' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles("admin")
+  @Patch(':uuid')
+  async update(@Param('uuid') uuid: string, @CurrentUser() currentUser) {
+    return this.postsService.update(uuid, currentUser.uuid, currentUser.roles)
   }
 
   @UseGuards(JwtAuthGuard)
@@ -71,7 +70,6 @@ export class PostsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':uuid')
   async remove(@Param('uuid') uuid: string, @CurrentUser() currentUser) {
-    const userInfo = await this.getUserOrThrow(currentUser)
-    return this.postsService.removePostByAuthor(uuid, userInfo)
+    return this.postsService.remove(uuid, currentUser.uuid, currentUser.roles)
   }
 }

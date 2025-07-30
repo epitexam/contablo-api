@@ -24,6 +24,7 @@ export class PostsController {
   }
 
   @Get()
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Search posts by content, author, article UUID, or post UUID' })
   findAll(@Query() searchPostDto: SearchPostDto) {
     return this.postsService.search(searchPostDto)

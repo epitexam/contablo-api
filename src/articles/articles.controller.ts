@@ -24,6 +24,7 @@ export class ArticlesController {
   }
 
   @Get()
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Search and list articles' })
   searchArticles(@Query() searchDto: SearchArticleDto) {
     return this.articlesService.search(searchDto)
@@ -31,13 +32,14 @@ export class ArticlesController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('jwt-access-token')
+  @HttpCode(HttpStatus.OK)
   @Get('my-articles')
   @ApiQuery({
     name: 'page',
     required: false,
     description: 'Page of results to display',
     example: 1,
-    default:1,
+    default: 1,
     type: Number,
   })
   @ApiQuery({
@@ -45,7 +47,7 @@ export class ArticlesController {
     required: false,
     description: 'Number of items per page',
     example: 10,
-    default:10,
+    default: 10,
     type: Number,
   })
   async myArticles(@CurrentUser() currentUser, @Query('page') page: number, @Query('limit') limit: number) {

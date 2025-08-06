@@ -5,13 +5,14 @@ import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CurrentUser } from 'src/users/users.decoraters';
 import { SearchPostDto } from './dto/search-post.dto';
-import { RolesGuard } from 'src/roles/roles.guard';
-import { Roles } from 'src/roles/roles.decorator';
+import { PostsGateway } from './posts.gateway';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Controller('posts')
 export class PostsController {
   constructor(
     private readonly postsService: PostsService,
+    private readonly postsGateway: PostsGateway
   ) { }
 
   @UseGuards(JwtAuthGuard)
@@ -20,7 +21,9 @@ export class PostsController {
   @Post()
   @ApiOperation({ summary: 'Create a new post' })
   async create(@Body() createPostDto: CreatePostDto, @CurrentUser() currentUser) {
-    return this.postsService.create(createPostDto, currentUser.uuid)
+    const newPost = await this.postsService.create(createPostDto, currentUser.uuid)
+    this.postsGateway.emitNewComment(newPost.article.uuid, newPost)
+    return newPost
   }
 
   @Get()
@@ -36,7 +39,7 @@ export class PostsController {
     name: 'page',
     required: false,
     description: 'Page of results to display',
-    example: 0,
+    example: 1,
     type: Number,
   })
   @ApiQuery({
@@ -55,14 +58,15 @@ export class PostsController {
     return this.postsService.search({ authorUuid: currentUser.uuid, onlyReplies: false, page, limit })
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('jwt-access-token')
   @ApiOperation({ summary: 'Update a post by its UUID' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles("admin")
   @Patch(':uuid')
-  async update(@Param('uuid') uuid: string, @CurrentUser() currentUser) {
-    return this.postsService.update(uuid, currentUser.uuid, currentUser.roles)
+  async update(@Param('uuid') uuid: string, @CurrentUser() currentUser, @Body() UpdatePostDto: UpdatePostDto) {
+    const updatedPost = await this.postsService.update(uuid,currentUser.uuid,currentUser.roles,UpdatePostDto)
+    this.postsGateway.emitUpdatedComment(updatedPost.article.uuid, updatedPost)
+    return updatedPost
   }
 
   @UseGuards(JwtAuthGuard)

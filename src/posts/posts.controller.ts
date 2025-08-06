@@ -20,9 +20,15 @@ export class PostsController {
   @HttpCode(HttpStatus.CREATED)
   @Post()
   @ApiOperation({ summary: 'Create a new post' })
-  async create(@Body() createPostDto: CreatePostDto, @CurrentUser() currentUser) {
+  async create(@Body() createPostDto: CreatePostDto, @CurrentUser() currentUser: any) {
     const newPost = await this.postsService.create(createPostDto, currentUser.uuid)
-    this.postsGateway.emitNewComment(newPost.article.uuid, newPost)
+
+    if (createPostDto.parentUuid) {
+      this.postsGateway.emitReplyToComment(newPost.article.uuid, createPostDto.parentUuid, newPost)
+    }
+    else {
+      this.postsGateway.emitNewComment(newPost.article.uuid, newPost)
+    }
     return newPost
   }
 
@@ -64,7 +70,7 @@ export class PostsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Patch(':uuid')
   async update(@Param('uuid') uuid: string, @CurrentUser() currentUser, @Body() UpdatePostDto: UpdatePostDto) {
-    const updatedPost = await this.postsService.update(uuid,currentUser.uuid,currentUser.roles,UpdatePostDto)
+    const updatedPost = await this.postsService.update(uuid, currentUser.uuid, currentUser.roles, UpdatePostDto)
     this.postsGateway.emitUpdatedComment(updatedPost.article.uuid, updatedPost)
     return updatedPost
   }

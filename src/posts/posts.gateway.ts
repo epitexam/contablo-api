@@ -32,6 +32,14 @@ export class PostsGateway {
     this.server.to(roomName).emit('newComment', comment);
   }
 
+  emitReplyToComment(articleUuid: string, parentCommentUuid: string, reply: PostDto) {
+    const roomName = `article_${articleUuid}`;
+    this.server.to(roomName).emit('newReply', {
+      parentUuid: parentCommentUuid,
+      reply,
+    });
+  }
+
   emitUpdatedComment(articleUuid: string, updatedComment: PostDto) {
     const roomName = `article_${articleUuid}`;
     this.server.to(roomName).emit('commentUpdated', updatedComment);

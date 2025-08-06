@@ -8,6 +8,7 @@ import { plainToInstance } from 'class-transformer';
 import { PostDto } from './dto/post-response.dto';
 import { SearchPostDto } from './dto/search-post.dto';
 import { UsersService } from 'src/users/users.service';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
@@ -58,8 +59,9 @@ export class PostsService {
       .addGroupBy('article.id')
       .addGroupBy('replyTo.id');
 
-    const page = dto.page ?? 0;
+    const page = Math.max(dto.page ?? 1, 1);
     const limit = dto.limit ?? 10;
+    const skip = (page - 1) * limit;
 
     if (dto.onlyReplies === true && !dto.postUuid) {
       throw new BadRequestException("You must provide 'postUuid' when using 'onlyReplies: true'");
@@ -92,23 +94,35 @@ export class PostsService {
 
     query
       .orderBy('post.createdAt', 'ASC')
-      .skip(page * limit)
+      .skip(skip)
       .take(limit);
 
-    const posts = await query.getManyAndCount();
+    const [posts, total] = await query.getManyAndCount();
 
-    return posts.map(post =>
-      plainToInstance(PostDto, post, {
-        excludeExtraneousValues: true,
-      }),
-    );
+    return {
+      posts: posts.map(post =>
+        plainToInstance(PostDto, post, {
+          excludeExtraneousValues: true,
+        }),
+      ),
+      page,
+      take: limit,
+      total: posts.length,
+      pageCount: Math.ceil(total / limit),
+    };
   }
 
-    async update(postUuid: string, userUuid: string, userRoles: string[]) {
+  async update(postUuid: string, userUuid: string, userRoles: string[], UpdatePostDto: UpdatePostDto) {
+
+    if (!postUuid || postUuid.length === 0) {
+      throw new BadRequestException("Missing post Uuid.")
+    }
+
     const postInfo = await this.postsRepository.findOne({
       where: {
         uuid: postUuid
-      }
+      },
+      relations: ["article"]
     })
 
     if (!postInfo) {
@@ -122,7 +136,12 @@ export class PostsService {
       throw new ForbiddenException('You are not allowed to delete this article');
     }
 
-    await this.postsRepository.remove(postInfo)
+    Object.assign(postInfo, UpdatePostDto)
+
+    await this.postsRepository.save(postInfo)
+
+    return plainToInstance(PostDto, postInfo, { excludeExtraneousValues: true });
+
   }
 
   async remove(postUuid: string, userUuid: string, userRoles: string[]) {

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID, IsInt, Min, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class SearchPostDto {
     @ApiPropertyOptional({ description: 'Text contained in the post (fuzzy search)' })
@@ -30,10 +30,16 @@ export class SearchPostDto {
 
     @ApiPropertyOptional({ description: "Responses of the post", default: false })
     @IsOptional()
-    @Type(() => Boolean)
+    @Transform(({ value }) => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+            return value.toLowerCase() === 'true';
+        }
+        return false;
+    })
     @IsBoolean()
     onlyReplies: boolean;
-
+    
     @ApiPropertyOptional({ description: 'Number of results to return', default: 10 })
     @IsOptional()
     @Type(() => Number)
@@ -41,10 +47,11 @@ export class SearchPostDto {
     @Min(1)
     limit?: number = 10;
 
-    @ApiPropertyOptional({ description: 'Results page', default: 0 })
+    @ApiPropertyOptional({ description: 'Results page', default: 1 })
     @IsOptional()
     @Type(() => Number)
     @IsInt()
-    @Min(0)
-    page?: number = 0;
+    @Min(1)
+    page?: number = 1;
+
 }

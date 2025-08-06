@@ -8,6 +8,7 @@ import { plainToInstance } from 'class-transformer';
 import { PostDto } from './dto/post-response.dto';
 import { SearchPostDto } from './dto/search-post.dto';
 import { UsersService } from 'src/users/users.service';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
@@ -106,17 +107,22 @@ export class PostsService {
       ),
       page,
       take: limit,
-      total,
+      total: posts.length,
       pageCount: Math.ceil(total / limit),
     };
   }
 
+  async update(postUuid: string, userUuid: string, userRoles: string[], UpdatePostDto: UpdatePostDto) {
 
-  async update(postUuid: string, userUuid: string, userRoles: string[]) {
+    if (!postUuid || postUuid.length === 0) {
+      throw new BadRequestException("Missing post Uuid.")
+    }
+
     const postInfo = await this.postsRepository.findOne({
       where: {
         uuid: postUuid
-      }
+      },
+      relations: ["article"]
     })
 
     if (!postInfo) {
@@ -130,7 +136,12 @@ export class PostsService {
       throw new ForbiddenException('You are not allowed to delete this article');
     }
 
-    await this.postsRepository.remove(postInfo)
+    Object.assign(postInfo, UpdatePostDto)
+
+    await this.postsRepository.save(postInfo)
+
+    return plainToInstance(PostDto, postInfo, { excludeExtraneousValues: true });
+
   }
 
   async remove(postUuid: string, userUuid: string, userRoles: string[]) {
